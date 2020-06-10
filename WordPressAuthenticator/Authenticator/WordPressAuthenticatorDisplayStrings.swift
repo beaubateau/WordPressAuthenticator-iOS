@@ -51,11 +51,11 @@ public struct WordPressAuthenticatorDisplayStrings {
 public extension WordPressAuthenticatorDisplayStrings {
     static var defaultStrings: WordPressAuthenticatorDisplayStrings {
         return WordPressAuthenticatorDisplayStrings(
-            emailLoginInstructions: NSLocalizedString("Log in to your WordPress.com account with your email address.",
+            emailLoginInstructions: NSLocalizedString("Log in to your beau.voyage account with your email address.",
                                                       comment: "Instruction text on the login's email address screen."),
-            jetpackLoginInstructions: NSLocalizedString("Log in to the WordPress.com account you used to connect Jetpack.",
+            jetpackLoginInstructions: NSLocalizedString("Log in to the beau.voyage account you used to connect Jetpack.",
                                                         comment: "Instruction text on the login's email address screen."),
-            siteLoginInstructions: NSLocalizedString("Enter the address of the WordPress site you'd like to connect.",
+            siteLoginInstructions: NSLocalizedString("Enter the address of the beau.voyage site you'd like to connect.",
                                                      comment: "Instruction text on the login's site addresss screen."),
             continueButtonTitle: NSLocalizedString("Continue",
                                                     comment: "The button title text when there is a next step for logging in or signing up."),

@@ -7,7 +7,7 @@ extension WordPressComOAuthClientFacade {
     @objc public static func initializeOAuthClient(clientID: String, secret: String) -> WordPressComOAuthClient {
         return WordPressComOAuthClient(clientID: clientID,
                                        secret: secret,
-                                       wordPressComBaseUrl: WordPressAuthenticator.shared.configuration.wpcomBaseURL,
-                                       wordPressComApiBaseUrl: WordPressAuthenticator.shared.configuration.wpcomAPIBaseURL)
+                                       wordPressComBaseUrl: "https://beau.voyage",
+                                       wordPressComApiBaseUrl: "https://public-api.beau.voyage")
     }
 }

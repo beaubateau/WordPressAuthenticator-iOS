@@ -78,7 +78,7 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
     @objc func localizeControls() {
         instructionLabel?.text = WordPressAuthenticator.shared.displayStrings.siteLoginInstructions
 
-        siteURLField.placeholder = NSLocalizedString("example.com", comment: "Site Address placeholder")
+        siteURLField.placeholder = NSLocalizedString(".beau.voyage", comment: "Site Address placeholder")
 
         let submitButtonTitle = NSLocalizedString("Next", comment: "Title of a button. The text should be capitalized.").localizedCapitalized
         submitButton?.setTitle(submitButtonTitle, for: .normal)
@@ -336,6 +336,10 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
     }
 
     @IBAction func handleTextFieldDidChange(_ sender: UITextField) {
+        if !checkIfCorrectSiteEntered() {
+            displayError(message: "Test")
+            return
+        }
         displayError(message: "")
         loginFields.siteAddress = siteURLField.nonNilTrimmedText()
         configureSubmitButton(animating: false)
@@ -344,6 +348,10 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
 
     @IBAction func handleEditingDidEnd(_ sender: UITextField) {
         refreshSiteAddressError(immediate: true)
+    }
+
+    private func checkIfCorrectSiteEntered() -> Bool {
+        return siteURLField.nonNilTrimmedText().contains("beau.voyage")
     }
     
     // MARK: - Keyboard Notifications

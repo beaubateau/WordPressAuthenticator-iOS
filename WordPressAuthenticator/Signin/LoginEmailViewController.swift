@@ -50,7 +50,6 @@ open class LoginEmailViewController: LoginViewController, NUXKeyboardResponder {
             addGoogleButton()
         }
 
-        addSelfHostedLogInButton()
         addSignupButton()
     }
 
@@ -152,26 +151,6 @@ open class LoginEmailViewController: LoginViewController, NUXKeyboardResponder {
             ])
 
         googleLoginButton = button
-    }
-
-    /// Add the log in with site address button to the view
-    ///
-    func addSelfHostedLogInButton() {
-        guard let instructionLabel = instructionLabel,
-            let stackView = inputStack else {
-                return
-        }
-
-        let button = WPStyleGuide.selfHostedLoginButton()
-        stackView.addArrangedSubview(button)
-        button.addTarget(self, action: #selector(handleSelfHostedButtonTapped), for: .touchUpInside)
-
-        stackView.addConstraints([
-            button.leadingAnchor.constraint(equalTo: instructionLabel.leadingAnchor),
-            button.trailingAnchor.constraint(equalTo: instructionLabel.trailingAnchor),
-            ])
-
-        selfHostedLoginButton = button
     }
 
     /// Add the sign up button

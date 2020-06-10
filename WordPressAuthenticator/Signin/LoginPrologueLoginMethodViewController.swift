@@ -43,16 +43,10 @@ class LoginPrologueLoginMethodViewController: NUXViewController {
         let wordpressTitle = NSLocalizedString("Continue with beau.voyage", comment: "Button title. Tapping begins our normal log in process.")
         buttonViewController.setupTopButton(title: wordpressTitle, isPrimary: false, accessibilityIdentifier: "Log in with Email Button") { [weak self] in
             self?.dismiss(animated: true)
-            self?.emailTapped?()
+            self?.handleSelfHostedButtonTapped()
         }
         
         buttonViewController.setupButtomButtonFor(socialService: .google, onTap: handleGoogleButtonTapped)
-
-        if !LoginFields().restrictToWPCom && selfHostedTapped != nil {
-            let selfHostedLoginButton = WPStyleGuide.selfHostedLoginButton(alignment: .center)
-            buttonViewController.stackView?.addArrangedSubview(selfHostedLoginButton)
-            selfHostedLoginButton.addTarget(self, action: #selector(handleSelfHostedButtonTapped), for: .touchUpInside)
-        }
 
         if WordPressAuthenticator.shared.configuration.enableSignInWithApple {
             if #available(iOS 13.0, *) {
@@ -67,7 +61,7 @@ class LoginPrologueLoginMethodViewController: NUXViewController {
         dismiss(animated: true)
     }
 
-    @IBAction func handleSelfHostedButtonTapped(_ sender: UIButton) {
+    func handleSelfHostedButtonTapped() {
         dismiss(animated: true)
         selfHostedTapped?()
     }
