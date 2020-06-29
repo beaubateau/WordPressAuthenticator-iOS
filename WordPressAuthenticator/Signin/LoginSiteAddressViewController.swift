@@ -23,12 +23,12 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
             loginFields.meta.siteInfo = nil
         }
     }
-    
+
     // MARK: - URL Validation
-    
+
     private lazy var urlErrorDebouncer = Debouncer(delay: 2) { [weak self] in
         let errorMessage = NSLocalizedString("Please enter a complete website address, like example.com.", comment: "Error message shown when a URL is invalid.")
-        
+
         self?.displayError(message: errorMessage)
     }
 
@@ -38,8 +38,16 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
         super.viewDidLoad()
         localizeControls()
         configureForAccessibility()
+        addRightView()
     }
 
+    private func addRightView() {
+        let label = UILabel()
+        label.text = ".beau.voyage"
+        siteURLField.rightViewMode = .always
+        siteURLField.rightView = label
+        label.sizeToFit()
+    }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
@@ -78,7 +86,7 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
     @objc func localizeControls() {
         instructionLabel?.text = WordPressAuthenticator.shared.displayStrings.siteLoginInstructions
 
-        siteURLField.placeholder = NSLocalizedString(".beau.voyage", comment: "Site Address placeholder")
+        siteURLField.placeholder = NSLocalizedString("", comment: "Site Address placeholder")
 
         let submitButtonTitle = NSLocalizedString("Next", comment: "Title of a button. The text should be capitalized.").localizedCapitalized
         submitButton?.setTitle(submitButtonTitle, for: .normal)
@@ -102,7 +110,8 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
     ///
     @objc func configureTextFields() {
         siteURLField.contentInsets = WPStyleGuide.edgeInsetForLoginTextFields()
-        siteURLField.text = loginFields.siteAddress
+        siteURLField.text = ""
+        loginFields.siteAddress = ""
     }
 
 
@@ -152,9 +161,15 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
     /// proceeds with the submit action.
     ///
     @objc func validateForm() {
+        var text = siteURLField.text ?? ""
+        if text.isEmpty {
+            loginFields.siteAddress = "beau.voyage"
+        } else {
+            loginFields.siteAddress = text + ".beau.voyage"
+        }
         view.endEditing(true)
         displayError(message: "")
-        
+
         // We need to to this here because before this point we need the URL to be pre-validated
         // exactly as the user inputs it, and after this point we need the URL to be the base site URL.
         // This isn't really great, but it's the only sane solution I could come up with given the current
@@ -200,7 +215,7 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
             }
         })
     }
-    
+
     @objc func fetchSiteInfo() {
         let baseSiteUrl = WordPressAuthenticator.baseSiteURL(string: loginFields.siteAddress)
         let service = WordPressComBlogService()
@@ -228,7 +243,7 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
     func presentNextControllerIfPossible(siteInfo: WordPressComSiteInfo?) {
         WordPressAuthenticator.shared.delegate?.shouldPresentUsernamePasswordController(for: siteInfo, onCompletion: { (error, isSelfHosted) in
             guard let originalError = error else {
-                
+
                 if isSelfHosted {
                     self.showSelfHostedUsernamePassword()
                     return
@@ -248,7 +263,7 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
         }
         return err
     }
-    
+
     /// Here we will continue with the self-hosted flow.
     ///
     @objc func showSelfHostedUsernamePassword() {
@@ -286,7 +301,7 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
     /// Whether the form can be submitted.
     ///
     @objc func canSubmit() -> Bool {
-        return loginFields.validateSiteForSignin()
+        return true // default is beau.voyage,  loginFields.validateSiteForSignin()
     }
 
     @objc private func promptUserToLogoutBeforeConnectingWPComSite() {
@@ -296,9 +311,9 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
         alertController.addDefaultActionWithTitle(acceptActionTitle)
         present(alertController, animated: true)
     }
-    
+
     // MARK: - URL Validation
-    
+
     /// Does a local / quick Site Address validation and refreshes the UI with an error
     /// if necessary.
     ///
@@ -306,7 +321,7 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
     ///
     private func refreshSiteAddressError(immediate: Bool) {
         let showError = !loginFields.siteAddress.isEmpty && !loginFields.validateSiteForSignin()
-        
+
         if showError {
             urlErrorDebouncer.call(immediate: immediate)
         } else {
@@ -336,10 +351,6 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
     }
 
     @IBAction func handleTextFieldDidChange(_ sender: UITextField) {
-        if !checkIfCorrectSiteEntered() {
-            displayError(message: "Test")
-            return
-        }
         displayError(message: "")
         loginFields.siteAddress = siteURLField.nonNilTrimmedText()
         configureSubmitButton(animating: false)
@@ -350,10 +361,6 @@ class LoginSiteAddressViewController: LoginViewController, NUXKeyboardResponder 
         refreshSiteAddressError(immediate: true)
     }
 
-    private func checkIfCorrectSiteEntered() -> Bool {
-        return siteURLField.nonNilTrimmedText().contains("beau.voyage")
-    }
-    
     // MARK: - Keyboard Notifications
 
 
