@@ -144,9 +144,13 @@ SPEC CHECKSUMS:
   wpxmlrpc: 6a9bdd6ab9d1b159b384b0df0f3f39de9af4fecf
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 PODFILE CHECKSUM: 775ba7a5cdd3898266fc4cbd425969c587cc4781
 =======
 PODFILE CHECKSUM: 926c96e8772c0c45208dccdcb8a2e5765f9ab773
 >>>>>>> Change version of WordPressShared.
+=======
+PODFILE CHECKSUM: cc28e2f4742d852b4285293d6c2dbf770ae4bc8d
+>>>>>>> Change version of WordPressShared. 2
 
 COCOAPODS: 1.8.4
