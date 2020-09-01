@@ -1,6 +1,11 @@
 import WordPressUI
 import WordPressShared
 
+
+/// This class houses the "3 button view":
+/// Continue with WordPress.com, Continue with Google, Continue with Apple
+/// and a text link - Or log in by entering your site address.
+///
 class LoginPrologueLoginMethodViewController: NUXViewController {
     /// Buttons at bottom of screen
     private var buttonViewController: NUXButtonViewController?
@@ -13,6 +18,10 @@ class LoginPrologueLoginMethodViewController: NUXViewController {
     open var selfHostedTapped: (() -> Void)?
     open var appleTapped: (() -> Void)?
 
+    private var tracker: AuthenticatorAnalyticsTracker {
+        AuthenticatorAnalyticsTracker.shared
+    }
+    
     /// The big transparent (dismiss) button behind the buttons
     @IBOutlet private weak var dismissButton: UIButton!
 
@@ -63,17 +72,27 @@ class LoginPrologueLoginMethodViewController: NUXViewController {
 
     func handleSelfHostedButtonTapped() {
         dismiss(animated: true)
+        
+        tracker.set(flow: .loginWithSiteAddress)
+        tracker.track(click: .loginWithSiteAddress)
+        
         selfHostedTapped?()
     }
 
     @objc func handleAppleButtonTapped() {
-        WordPressAuthenticator.track(.loginSocialButtonClick, properties: ["source": "apple"])
+        tracker.set(flow: .loginWithApple)
+        tracker.track(click: .loginWithApple, ifTrackingNotEnabled: {
+            WordPressAuthenticator.track(.loginSocialButtonClick, properties: ["source": "apple"])
+        })
         
         dismiss(animated: true)
         appleTapped?()
     }
 
     @objc func handleGoogleButtonTapped() {
+        tracker.set(flow: .loginWithGoogle)
+        tracker.track(click: .loginWithGoogle)
+        
         dismiss(animated: true)
         googleTapped?()
     }

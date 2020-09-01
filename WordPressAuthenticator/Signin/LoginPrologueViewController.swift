@@ -9,21 +9,45 @@ class LoginPrologueViewController: LoginViewController {
     private var buttonViewController: NUXButtonViewController?
     var showCancel = false
 
-    override var preferredStatusBarStyle: UIStatusBarStyle {
-        return .lightContent
-    }
+    // Called when login button is tapped
+    var onLoginButtonTapped: (() -> Void)?
+
+    private let configuration = WordPressAuthenticator.shared.configuration
+    private let style = WordPressAuthenticator.shared.style
+
+    @available(iOS 13, *)
+    private lazy var storedCredentialsAuthenticator = StoredCredentialsAuthenticator()
+    
+    @IBOutlet private weak var topContainerView: UIView!
 
     // MARK: - Lifecycle Methods
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        if let topContainerChildViewController = style.prologueTopContainerChildViewController() {
+            topContainerView.subviews.forEach { $0.removeFromSuperview() }
+            addChild(topContainerChildViewController)
+            topContainerView.addSubview(topContainerChildViewController.view)
+            topContainerChildViewController.didMove(toParent: self)
+
+            topContainerChildViewController.view.translatesAutoresizingMaskIntoConstraints = false
+            topContainerView.pinSubviewToAllEdges(topContainerChildViewController.view)
+        }
+    }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         configureButtonVC()
-        self.navigationController?.setNavigationBarHidden(true, animated: false)
+        navigationController?.setNavigationBarHidden(true, animated: false)
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        
         WordPressAuthenticator.track(.loginPrologueViewed)
+        
+        showiCloudKeychainLoginFlow()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -34,6 +58,20 @@ class LoginPrologueViewController: LoginViewController {
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
         return UIDevice.isPad() ? .all : .portrait
+    }
+    
+    // MARK: - iCloud Keychain Login
+    
+    /// Starts the iCloud Keychain login flow if the conditions are given.
+    ///
+    private func showiCloudKeychainLoginFlow() {
+        guard #available(iOS 13, *),
+            WordPressAuthenticator.shared.configuration.enableUnifiedKeychainLogin,
+            let navigationController = navigationController else {
+                return
+        }
+
+        storedCredentialsAuthenticator.showPicker(from: navigationController)
     }
 
     // MARK: - Segue
@@ -55,10 +93,14 @@ class LoginPrologueViewController: LoginViewController {
         let createTitle = NSLocalizedString("Sign up for WordPress.com", comment: "Button title. Tapping begins the process of creating a WordPress.com account.")
 
         buttonViewController.setupTopButton(title: loginTitle, isPrimary: false, accessibilityIdentifier: "Prologue Log In Button") { [weak self] in
+            self?.onLoginButtonTapped?()
             self?.loginTapped()
         }
-        buttonViewController.setupBottomButton(title: createTitle, isPrimary: true, accessibilityIdentifier: "Prologue Signup Button") { [weak self] in
-            self?.signupTapped()
+
+        if configuration.enableSignUp {
+            buttonViewController.setupBottomButton(title: createTitle, isPrimary: true, accessibilityIdentifier: "Prologue Signup Button") { [weak self] in
+                self?.signupTapped()
+            }
         }
         if showCancel {
             let cancelTitle = NSLocalizedString("Cancel", comment: "Button title. Tapping it cancels the login flow.")
@@ -66,13 +108,15 @@ class LoginPrologueViewController: LoginViewController {
                 self?.dismiss(animated: true, completion: nil)
             }
         }
-        buttonViewController.backgroundColor = WordPressAuthenticator.shared.style.buttonViewBackgroundColor
+        buttonViewController.backgroundColor = style.buttonViewBackgroundColor
     }
 
     // MARK: - Actions
 
     private func loginTapped() {
-        if WordPressAuthenticator.shared.configuration.showLoginOptions {
+        tracker.set(source: .default)
+        
+        if configuration.showLoginOptions {
             guard let vc = LoginPrologueLoginMethodViewController.instantiate(from: .login) else {
                 DDLogError("Failed to navigate to LoginPrologueLoginMethodViewController from LoginPrologueViewController")
                 return
@@ -82,12 +126,16 @@ class LoginPrologueViewController: LoginViewController {
 
             // Continue with WordPress.com button action
             vc.emailTapped = { [weak self] in
-                guard let toVC = LoginEmailViewController.instantiate(from: .login) else {
-                    DDLogError("Failed to navigate to LoginEmailVC from LoginPrologueVC")
+                guard let self = self else {
                     return
                 }
 
-                self?.navigationController?.pushViewController(toVC, animated: true)
+                guard self.configuration.enableUnifiedWordPress else {
+                    self.presentLoginEmailView()
+                    return
+                }
+
+                self.presentGetStartedView()
             }
 
             // Continue with Google button action
@@ -108,8 +156,8 @@ class LoginPrologueViewController: LoginViewController {
             vc.modalPresentationStyle = .custom
             navigationController?.present(vc, animated: true, completion: nil)
         } else {
-            guard let vc = LoginEmailViewController.instantiate(from: .login) else {
-                DDLogError("Failed to navigate to LoginEmailViewController from LoginPrologueViewController")
+            guard let vc = GetStartedViewController.instantiate(from: .getStarted) else {
+                DDLogError("Failed to navigate from LoginPrologueViewController to GetStartedViewController")
                 return
             }
 
@@ -118,6 +166,8 @@ class LoginPrologueViewController: LoginViewController {
     }
 
     private func signupTapped() {
+        tracker.set(source: .default)
+        
         // This stat is part of a funnel that provides critical information.
         // Before making ANY modification to this stat please refer to: p4qSXL-35X-p2
         WordPressAuthenticator.track(.signupButtonTapped)
@@ -133,21 +183,29 @@ class LoginPrologueViewController: LoginViewController {
         vc.modalPresentationStyle = .custom
 
         vc.emailTapped = { [weak self] in
-            guard let toVC = SignupEmailViewController.instantiate(from: .signup) else {
-                DDLogError("Failed to navigate to SignupEmailViewController")
+            guard let self = self else {
                 return
             }
 
-            self?.navigationController?.pushViewController(toVC, animated: true)
+            guard self.configuration.enableUnifiedWordPress else {
+                self.presentSignUpEmailView()
+                return
+            }
+
+            self.presentUnifiedSignupView()
         }
 
         vc.googleTapped = { [weak self] in
-            guard WordPressAuthenticator.shared.configuration.enableUnifiedGoogle else {
-                self?.presentGoogleSignupView()
+            guard let self = self else {
+                return
+            }
+            
+            guard self.configuration.enableUnifiedGoogle else {
+                self.presentGoogleSignupView()
                 return
             }
 
-            self?.presentUnifiedGoogleView()
+            self.presentUnifiedGoogleView()
         }
 
         vc.appleTapped = { [weak self] in
@@ -163,24 +221,49 @@ class LoginPrologueViewController: LoginViewController {
     }
 
     private func googleTapped() {
-        guard WordPressAuthenticator.shared.configuration.enableUnifiedGoogle else {
+        guard configuration.enableUnifiedGoogle else {
             GoogleAuthenticator.sharedInstance.loginDelegate = self
             GoogleAuthenticator.sharedInstance.showFrom(viewController: self, loginFields: loginFields, for: .login)
             return
         }
-
+        
         presentUnifiedGoogleView()
     }
 
-    /// Determines which view to present for the site address form.
-    ///
-    private func loginToSelfHostedSite() {
-        guard WordPressAuthenticator.shared.configuration.enableUnifiedSiteAddress else {
-            presentSelfHostedView()
+    private func presentSignUpEmailView() {
+        guard let toVC = SignupEmailViewController.instantiate(from: .signup) else {
+            DDLogError("Failed to navigate to SignupEmailViewController")
             return
         }
 
-        presentUnifiedSiteAddressView()
+        navigationController?.pushViewController(toVC, animated: true)
+    }
+
+    private func presentUnifiedSignupView() {
+        guard let toVC = UnifiedSignupViewController.instantiate(from: .unifiedSignup) else {
+            DDLogError("Failed to navigate to UnifiedSignupViewController")
+            return
+        }
+
+        navigationController?.pushViewController(toVC, animated: true)
+    }
+
+    private func presentLoginEmailView() {
+        guard let toVC = LoginEmailViewController.instantiate(from: .login) else {
+            DDLogError("Failed to navigate to LoginEmailVC from LoginPrologueVC")
+            return
+        }
+
+        navigationController?.pushViewController(toVC, animated: true)
+    }
+
+    private func presentGetStartedView() {
+        guard let toVC = GetStartedViewController.instantiate(from: .getStarted) else {
+            DDLogError("Failed to navigate to GetStartedViewController")
+            return
+        }
+
+        navigationController?.pushViewController(toVC, animated: true)
     }
 
     // Shows the VC that handles both Google login & signup.
@@ -203,32 +286,42 @@ class LoginPrologueViewController: LoginViewController {
         navigationController?.pushViewController(toVC, animated: true)
     }
 
-    /// Navigates to the unified site address login flow.
-    ///
-    private func presentUnifiedSiteAddressView() {
-        guard let vc = SiteAddressViewController.instantiate(from: .siteAddress) else {
-            DDLogError("Failed to navigate from LoginPrologueViewController to SiteAddressViewController")
+    private func presentWPLogin() {
+        guard let vc = LoginWPComViewController.instantiate(from: .login) else {
+            DDLogError("Failed to navigate from LoginPrologueViewController to LoginWPComViewController")
             return
         }
-
-        navigationController?.pushViewController(vc, animated: true)
-    }
-
-    /// Navigates to the old self-hosted login flow.
-    ///
-    private func presentSelfHostedView() {
-        guard let vc = LoginSiteAddressViewController.instantiate(from: .login) else {
-            DDLogError("Failed to navigate from LoginPrologueViewController to LoginSiteAddressViewController")
-            return
-        }
-
-        vc.loginFields = loginFields
+        
+        vc.loginFields = self.loginFields
         vc.dismissBlock = dismissBlock
         vc.errorToPresent = errorToPresent
-
+        
         navigationController?.pushViewController(vc, animated: true)
     }
     
+    private func presentUnifiedPassword() {
+        guard let vc = PasswordViewController.instantiate(from: .password) else {
+            DDLogError("Failed to navigate from LoginPrologueViewController to PasswordViewController")
+            return
+        }
+        
+        vc.loginFields = loginFields
+        navigationController?.pushViewController(vc, animated: true)
+    }
+
+}
+
+// MARK: - LoginFacadeDelegate
+
+extension LoginPrologueViewController {
+
+    // Used by SIWA when logging with with a passwordless, 2FA account.
+    //
+    func needsMultifactorCode(forUserID userID: Int, andNonceInfo nonceInfo: SocialLogin2FANonceInfo) {
+        configureViewLoading(false)
+        socialNeedsMultifactorCode(forUserID: userID, andNonceInfo: nonceInfo)
+    }
+
 }
 
 // MARK: - AppleAuthenticatorDelegate
@@ -237,16 +330,13 @@ extension LoginPrologueViewController: AppleAuthenticatorDelegate {
 
     func showWPComLogin(loginFields: LoginFields) {
         self.loginFields = loginFields
-        guard let vc = LoginWPComViewController.instantiate(from: .login) else {
-            DDLogError("Failed to navigate from Prologue > Sign in with Apple to LoginWPComViewController")
+
+        guard WordPressAuthenticator.shared.configuration.enableUnifiedApple else {
+            presentWPLogin()
             return
         }
 
-        vc.loginFields = self.loginFields
-        vc.dismissBlock = dismissBlock
-        vc.errorToPresent = errorToPresent
-
-        navigationController?.pushViewController(vc, animated: true)
+        presentUnifiedPassword()
     }
 
     func showApple2FA(loginFields: LoginFields) {

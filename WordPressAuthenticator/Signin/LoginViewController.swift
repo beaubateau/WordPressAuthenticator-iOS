@@ -7,7 +7,15 @@ import GoogleSignIn
 open class LoginViewController: NUXViewController, LoginFacadeDelegate {
     @IBOutlet var instructionLabel: UILabel?
     @objc var errorToPresent: Error?
+    
+    let tracker = AuthenticatorAnalyticsTracker.shared
 
+    /// Constraints on the table view container.
+    /// Used to adjust the table width in unified views.
+    @IBOutlet var tableViewLeadingConstraint: NSLayoutConstraint?
+    @IBOutlet var tableViewTrailingConstraint: NSLayoutConstraint?
+    var defaultTableViewMargin: CGFloat = 0
+    
     lazy var loginFacade: LoginFacade = {
         let configuration = WordPressAuthenticator.shared.configuration
         let facade = LoginFacade(dotcomClientID: configuration.wpcomClientId,
@@ -32,17 +40,20 @@ open class LoginViewController: NUXViewController, LoginFacadeDelegate {
 
         return delegate
     }
-    
+
+    open override var preferredStatusBarStyle: UIStatusBarStyle {
+        // Set to the old style as the default.
+        // Each VC in the unified flows needs to override this to use the unified style.
+        return WordPressAuthenticator.shared.style.statusBarStyle
+    }
+
     // MARK: Lifecycle Methods
 
     override open func viewDidLoad() {
         super.viewDidLoad()
-        
-        navigationController?.navigationBar.prefersLargeTitles = false
-        navigationItem.largeTitleDisplayMode = .never
-        styleNavigationBar()
-        
+
         displayError(message: "")
+        styleNavigationBar()
         styleBackground()
         styleInstructions()
 
@@ -52,21 +63,21 @@ open class LoginViewController: NUXViewController, LoginFacadeDelegate {
         }
     }
 
+    override open func viewWillDisappear(_ animated: Bool) {
+        if isMovingFromParent {
+            tracker.track(click: .dismiss)
+        }
+    }
+
     func didChangePreferredContentSize() {
         styleInstructions()
     }
 
     // MARK: - Setup and Configuration
 
-    /// Places the WordPress logo in the navbar
-    ///
-    func setupNavBarIcon(showIcon: Bool = true) {
-        showIcon ? addAppLogoToNavController() : removeAppLogoFromNavController()
-    }
-
     /// Styles the view's background color. Defaults to WPStyleGuide.lightGrey()
     ///
-    @objc func styleBackground() {
+    func styleBackground() {
         view.backgroundColor = WordPressAuthenticator.shared.style.viewControllerBackgroundColor
     }
 
@@ -76,50 +87,6 @@ open class LoginViewController: NUXViewController, LoginFacadeDelegate {
         instructionLabel?.font = WPStyleGuide.mediumWeightFont(forStyle: .subheadline)
         instructionLabel?.adjustsFontForContentSizeCategory = true
         instructionLabel?.textColor = WordPressAuthenticator.shared.style.instructionColor
-    }
-
-    private func styleNavigationBar() {
-        
-        var navBarBackgroundColor: UIColor
-        var navButtonTextColor: UIColor
-        var hideBottomBorder: Bool
-        
-        switch navigationItem.largeTitleDisplayMode {
-        // Original nav bar style
-        case .never:
-            setupNavBarIcon()
-            navButtonTextColor = WordPressAuthenticator.shared.style.navButtonTextColor
-            navBarBackgroundColor = WordPressAuthenticator.shared.style.navBarBackgroundColor
-            hideBottomBorder = false
-        // Unified nav bar style
-        default:
-            setupNavBarIcon(showIcon: false)
-            navButtonTextColor = WordPressAuthenticator.shared.unifiedStyle?.navButtonTextColor ?? WordPressAuthenticator.shared.style.navButtonTextColor
-            navBarBackgroundColor = WordPressAuthenticator.shared.unifiedStyle?.navBarBackgroundColor ?? WordPressAuthenticator.shared.style.navBarBackgroundColor
-            hideBottomBorder = true
-        }
-
-        let largeTitleTextColor = WordPressAuthenticator.shared.unifiedStyle?.largeTitleTextColor ?? WordPressAuthenticator.shared.style.instructionColor
-        let largeTitleFont = WPStyleGuide.serifFontForTextStyle(.largeTitle, fontWeight: .semibold)
-        let largeTitleTextAttributes:[NSAttributedString.Key: Any] = [.foregroundColor: largeTitleTextColor,
-                                                                      .font: largeTitleFont]
-        if #available(iOS 13.0, *) {
-            let appearance = UINavigationBarAppearance()
-            appearance.shadowColor = hideBottomBorder ? .clear : .separator
-            appearance.backgroundColor = navBarBackgroundColor
-            appearance.largeTitleTextAttributes = largeTitleTextAttributes
-            UIBarButtonItem.appearance().tintColor = navButtonTextColor
-            
-            UINavigationBar.appearance().standardAppearance = appearance
-            UINavigationBar.appearance().compactAppearance = appearance
-            UINavigationBar.appearance().scrollEdgeAppearance = appearance
-        } else {
-            let appearance = UINavigationBar.appearance()
-            appearance.barTintColor = navBarBackgroundColor
-            appearance.largeTitleTextAttributes = largeTitleTextAttributes
-            UIBarButtonItem.appearance().tintColor = navButtonTextColor
-        }
-
     }
 
     func configureViewLoading(_ loading: Bool) {
@@ -139,6 +106,9 @@ open class LoginViewController: NUXViewController, LoginFacadeDelegate {
             errorLabel?.isHidden = true
             return
         }
+        
+        tracker.track(failure: message)
+        
         errorLabel?.isHidden = false
         errorLabel?.text = message
         errorToPresent = nil
@@ -219,7 +189,7 @@ open class LoginViewController: NUXViewController, LoginFacadeDelegate {
     /// Overridden here to direct these errors to the login screen's error label
     dynamic open func displayRemoteError(_ error: Error) {
         configureViewLoading(false)
-
+        
         let err = error as NSError
         guard err.code != 403 else {
             let message = LocalizedText.loginError
@@ -234,18 +204,20 @@ open class LoginViewController: NUXViewController, LoginFacadeDelegate {
         displayError(message: "")
         configureViewLoading(false)
 
-        WordPressAuthenticator.track(.twoFactorCodeRequested)
-
-        guard let vc = Login2FAViewController.instantiate(from: .login) else {
-            DDLogError("Failed to navigate from LoginViewController to Login2FAViewController")
+        if tracker.shouldUseLegacyTracker() {
+            WordPressAuthenticator.track(.twoFactorCodeRequested)
+        }
+        
+        let unifiedGoogle = WordPressAuthenticator.shared.configuration.enableUnifiedGoogle && loginFields.meta.socialService == .google
+        let unifiedApple = WordPressAuthenticator.shared.configuration.enableUnifiedApple && loginFields.meta.socialService == .apple
+        let unifiedSiteAddress = WordPressAuthenticator.shared.configuration.enableUnifiedSiteAddress && !loginFields.siteAddress.isEmpty
+        
+        guard (unifiedGoogle || unifiedApple || unifiedSiteAddress) else {
+            presentLogin2FA()
             return
         }
-
-        vc.loginFields = loginFields
-        vc.dismissBlock = dismissBlock
-        vc.errorToPresent = errorToPresent
-
-        navigationController?.pushViewController(vc, animated: true)
+        
+        presentUnified2FA()
     }
 
     // Update safari stored credentials. Call after a successful sign in.
@@ -259,7 +231,6 @@ open class LoginViewController: NUXViewController, LoginFacadeDelegate {
         static let missingInfoError = NSLocalizedString("Please fill out all the fields", comment: "A short prompt asking the user to properly fill out all login fields.")
         static let gettingAccountInfo = NSLocalizedString("Getting account information", comment: "Alerts the user that wpcom account information is being retrieved.")
     }
-
 }
 
 // MARK: - Sync Helpers
@@ -306,6 +277,11 @@ extension LoginViewController {
     /// Tracks the SignIn Event
     ///
     func trackSignIn(credentials: AuthenticatorCredentials) {
+        // Once we remove legacy tracking, this whole method can go away.
+        guard tracker.shouldUseLegacyTracker() else {
+            return
+        }
+        
         var properties = [String: String]()
 
         if let wpcom = credentials.wpcom {
@@ -350,10 +326,12 @@ extension LoginViewController {
                         serviceToken: serviceToken,
                         connectParameters: appleConnectParameters,
                         success: {
-                            let source = appleConnectParameters != nil ? "apple" : "google"
-                            WordPressAuthenticator.track(.signedIn, properties: ["source": source])
-                            WordPressAuthenticator.track(.loginSocialConnectSuccess)
-                            WordPressAuthenticator.track(.loginSocialSuccess)
+                            if AuthenticatorAnalyticsTracker.shared.shouldUseLegacyTracker() {
+                                let source = appleConnectParameters != nil ? "apple" : "google"
+                                WordPressAuthenticator.track(.signedIn, properties: ["source": source])
+                                WordPressAuthenticator.track(.loginSocialConnectSuccess)
+                                WordPressAuthenticator.track(.loginSocialSuccess)
+                            }
         }, failure: { error in
             DDLogError("Social Link Error: \(error)")
             WordPressAuthenticator.track(.loginSocialConnectFailure, error: error)
@@ -370,21 +348,69 @@ extension LoginViewController {
 }
 
 
-// MARK: - Handle changes in traitCollections. In particular, changes in Dynamic Type
+// MARK: - Handle View Changes
 //
 extension LoginViewController {
-    override open func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    
+    open override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         super.traitCollectionDidChange(previousTraitCollection)
 
+        // Update Dynamic Type
         if previousTraitCollection?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory {
             didChangePreferredContentSize()
         }
+        
+        // Update Table View size
+        setTableViewMargins(forWidth: view.frame.width)
     }
+    
+    open override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        setTableViewMargins(forWidth: size.width)
+    }
+
+    /// Resize the table view based on trait collection.
+    /// Used only in unified views.
+    ///
+    func setTableViewMargins(forWidth viewWidth: CGFloat) {
+        guard let tableViewLeadingConstraint = tableViewLeadingConstraint,
+            let tableViewTrailingConstraint = tableViewTrailingConstraint else {
+                return
+        }
+
+        guard traitCollection.horizontalSizeClass == .regular &&
+            traitCollection.verticalSizeClass == .regular else {
+                tableViewLeadingConstraint.constant = defaultTableViewMargin
+                tableViewTrailingConstraint.constant = defaultTableViewMargin
+                return
+        }
+
+        let marginMultiplier = UIDevice.current.orientation.isLandscape ?
+            TableViewMarginMultipliers.ipadLandscape :
+            TableViewMarginMultipliers.ipadPortrait
+
+        let margin = viewWidth * marginMultiplier
+
+        tableViewLeadingConstraint.constant = margin
+        tableViewTrailingConstraint.constant = margin
+    }
+    
+    private enum TableViewMarginMultipliers {
+        static let ipadPortrait: CGFloat = 0.1667
+        static let ipadLandscape: CGFloat = 0.25
+    }
+    
 }
 
 // MARK: - Social Sign In Handling
 
 extension LoginViewController {
+
+    func removeGoogleWaitingView() {
+        // Remove the Waiting for Google view so it doesn't reappear when backing through the navigation stack.
+        navigationController?.viewControllers.removeAll(where: { $0 is GoogleAuthViewController })
+    }
+    
     func signInAppleAccount() {
         guard let token = loginFields.meta.socialServiceIDToken else {
             WordPressAuthenticator.track(.loginSocialButtonFailure, properties: ["source": SocialServiceName.apple.rawValue])
@@ -404,35 +430,113 @@ extension LoginViewController {
         loginFields.meta.googleUser = googleUser
     }
     
-}
+    // Used by SIWA when logging with with a passwordless, 2FA account.
+    //
+    func socialNeedsMultifactorCode(forUserID userID: Int, andNonceInfo nonceInfo: SocialLogin2FANonceInfo) {
+        loginFields.nonceInfo = nonceInfo
+        loginFields.nonceUserID = userID
 
-// MARK: - Navigation Bar Large Titles
+        guard WordPressAuthenticator.shared.configuration.enableUnifiedApple else {
+            presentLogin2FA()
+            return
+        }
 
-extension LoginViewController {
-    func setLargeTitleDisplayMode(_ largeTitleDisplayMode: UINavigationItem.LargeTitleDisplayMode) {
-
-        // prefersLargeTitles needs to always be true if large titles are used anywhere.
-        // In order to show/hide large titles, toggle largeTitleDisplayMode instead of prefersLargeTitles.
-        // This allows the large titles to hide/show correctly, and animate properly when doing so,
-        // when going from a view with large titles to one without, and vice versa.
-        // Ref https://www.morningswiftui.com/blog/fix-large-title-animation-on-ios13
-
-        navigationController?.navigationBar.prefersLargeTitles = true
-        navigationItem.largeTitleDisplayMode = largeTitleDisplayMode
-        styleNavigationBar()
+        presentUnified2FA()
     }
+    
+    private func presentLogin2FA() {
+        var properties = [AnyHashable:Any]()
+        if let service = loginFields.meta.socialService?.rawValue {
+            properties["source"] = service
+        }
+        
+        if tracker.shouldUseLegacyTracker() {
+            WordPressAuthenticator.track(.loginSocial2faNeeded, properties: properties)
+        }
+        
+        guard let vc = Login2FAViewController.instantiate(from: .login) else {
+            DDLogError("Failed to navigate from LoginViewController to Login2FAViewController")
+            return
+        }
+        
+        vc.loginFields = loginFields
+        vc.dismissBlock = dismissBlock
+        vc.errorToPresent = errorToPresent
+        
+        navigationController?.pushViewController(vc, animated: true)
+    }
+    
+    private func presentUnified2FA() {
+        
+        guard let vc = TwoFAViewController.instantiate(from: .twoFA) else {
+            DDLogError("Failed to navigate from LoginViewController to TwoFAViewController")
+            return
+        }
+        
+        vc.loginFields = loginFields
+        navigationController?.pushViewController(vc, animated: true)
+    }
+
 }
 
 // MARK: - LoginSocialError delegate methods
 
 extension LoginViewController: LoginSocialErrorViewControllerDelegate {
+    
+    func retryWithEmail() {
+        loginFields.username = ""
+        cleanupAfterSocialErrors()
+        navigationController?.popToRootViewController(animated: true)
+    }
+    
+    func retryWithAddress() {
+        cleanupAfterSocialErrors()
+        loginToSelfHostedSite()
+    }
+    
+    func retryAsSignup() {
+        cleanupAfterSocialErrors()
+        
+        if let controller = SignupEmailViewController.instantiate(from: .signup) {
+            controller.loginFields = loginFields
+            navigationController?.pushViewController(controller, animated: true)
+        }
+    }
+    
+    func errorDismissed() {
+        loginFields.username = ""
+        navigationController?.popToRootViewController(animated: true)
+    }
+    
     private func cleanupAfterSocialErrors() {
         dismiss(animated: true) {}
     }
-
+    
     /// Displays the self-hosted login form.
     ///
-    private func loginToSelfHostedSite() {
+    @objc func loginToSelfHostedSite() {
+        guard WordPressAuthenticator.shared.configuration.enableUnifiedSiteAddress else {
+            presentSelfHostedView()
+            return
+        }
+        
+        presentUnifiedSiteAddressView()
+    }
+    
+    /// Navigates to the unified site address login flow.
+    ///
+    func presentUnifiedSiteAddressView() {
+        guard let vc = SiteAddressViewController.instantiate(from: .siteAddress) else {
+            DDLogError("Failed to navigate from LoginViewController to SiteAddressViewController")
+            return
+        }
+
+        navigationController?.pushViewController(vc, animated: true)
+    }
+
+    /// Navigates to the old self-hosted login flow.
+    ///
+    func presentSelfHostedView() {
         guard let vc = LoginSiteAddressViewController.instantiate(from: .login) else {
             DDLogError("Failed to navigate from LoginViewController to LoginSiteAddressViewController")
             return
@@ -444,23 +548,5 @@ extension LoginViewController: LoginSocialErrorViewControllerDelegate {
 
         navigationController?.pushViewController(vc, animated: true)
     }
-
-    func retryWithEmail() {
-        loginFields.username = ""
-        cleanupAfterSocialErrors()
-    }
-
-    func retryWithAddress() {
-        cleanupAfterSocialErrors()
-        loginToSelfHostedSite()
-    }
-
-    func retryAsSignup() {
-        cleanupAfterSocialErrors()
-
-        if let controller = SignupEmailViewController.instantiate(from: .signup) {
-            controller.loginFields = loginFields
-            navigationController?.pushViewController(controller, animated: true)
-        }
-    }
+    
 }

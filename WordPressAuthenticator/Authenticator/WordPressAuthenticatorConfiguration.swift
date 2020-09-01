@@ -51,6 +51,10 @@ public struct WordPressAuthenticatorConfiguration {
     ///
     let showLoginOptions: Bool
 
+    /// Flag indicating if Sign Up UX is enabled for all services.
+    ///
+    let enableSignUp: Bool
+
     /// Flag indicating if the Sign In With Apple option should be displayed.
     ///
     let enableSignInWithApple: Bool
@@ -82,6 +86,18 @@ public struct WordPressAuthenticatorConfiguration {
     ///
     let enableUnifiedGoogle: Bool
 
+    /// Flag indicating if the unified Apple flow should display.
+    ///
+    let enableUnifiedApple: Bool
+
+    /// Flag indicating if the unified WordPress flow should display.
+    ///
+    let enableUnifiedWordPress: Bool
+    
+    /// Flag indicating if keychain login is enabled
+    ///
+    let enableUnifiedKeychainLogin: Bool
+
     /// Designated Initializer
     ///
     public init (wpcomClientId: String,
@@ -95,12 +111,16 @@ public struct WordPressAuthenticatorConfiguration {
                  googleLoginScheme: String,
                  userAgent: String,
                  showLoginOptions: Bool = false,
+                 enableSignUp: Bool = true,
                  enableSignInWithApple: Bool = false,
                  enableSignupWithGoogle: Bool = false,
                  enableUnifiedAuth: Bool = false,
                  displayHintButtons: Bool = true,
                  enableUnifiedSiteAddress: Bool = false,
-                 enableUnifiedGoogle: Bool = false) {
+                 enableUnifiedGoogle: Bool = false,
+                 enableUnifiedApple: Bool = false,
+                 enableUnifiedWordPress: Bool = false,
+                 enableUnifiedKeychainLogin: Bool = false) {
 
         self.wpcomClientId = wpcomClientId
         self.wpcomSecret = wpcomSecret
@@ -113,11 +133,15 @@ public struct WordPressAuthenticatorConfiguration {
         self.googleLoginScheme = googleLoginScheme
         self.userAgent = userAgent
         self.showLoginOptions = showLoginOptions
+        self.enableSignUp = enableSignUp
         self.enableSignInWithApple = enableSignInWithApple
         self.enableUnifiedAuth = enableUnifiedAuth
         self.displayHintButtons = displayHintButtons
         self.enableUnifiedSiteAddress = enableUnifiedAuth && enableUnifiedSiteAddress
         self.enableUnifiedGoogle = enableUnifiedAuth && enableUnifiedGoogle
         self.enableSignupWithGoogle = enableSignupWithGoogle
+        self.enableUnifiedApple = enableUnifiedAuth && enableUnifiedApple
+        self.enableUnifiedWordPress = enableUnifiedAuth && enableUnifiedWordPress
+        self.enableUnifiedKeychainLogin = enableUnifiedAuth && enableUnifiedKeychainLogin
     }
 }

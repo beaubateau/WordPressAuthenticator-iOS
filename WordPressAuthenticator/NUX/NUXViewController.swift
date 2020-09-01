@@ -3,7 +3,7 @@ import WordPressUI
 
 // MARK: - NUXViewController
 /// Base class to use for NUX view controllers that aren't a table view
-/// Note: shares most of its code with NUXTableViewController and NUXCollectionViewController. Look to make
+/// Note: shares most of its code with NUXTableViewController. Look to make
 ///       most changes in either the base protocol NUXViewControllerBase or further subclasses like LoginViewController
 open class NUXViewController: UIViewController, NUXViewControllerBase, UIViewControllerTransitioningDelegate {
     // MARK: NUXViewControllerBase properties
@@ -38,6 +38,14 @@ open class NUXViewController: UIViewController, NUXViewControllerBase, UIViewCon
         submitButton?.isEnabled = enableSubmit(animating: animating)
     }
 
+    /// Localize the "Continue" button.
+    ///
+    func localizePrimaryButton() {
+        let primaryTitle = WordPressAuthenticator.shared.displayStrings.continueButtonTitle
+        submitButton?.setTitle(primaryTitle, for: .normal)
+        submitButton?.setTitle(primaryTitle, for: .highlighted)
+    }
+    
     open func enableSubmit(animating: Bool) -> Bool {
         return !animating
     }
